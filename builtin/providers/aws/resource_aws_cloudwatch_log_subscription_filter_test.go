@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go/service/lambda"
 	"github.com/hashicorp/terraform/helper/acctest"
 	"github.com/hashicorp/terraform/helper/resource"
@@ -30,6 +31,42 @@ func TestAccAWSCloudwatchLogSubscriptionFilter_basic(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestAccAWSCloudwatchLogSubscriptionFilter_disappears(t *testing.T) {
+	var conf lambda.GetFunctionOutput
+	var sf cloudwatchlogs.SubscriptionFilter
+	rstring := acctest.RandString(5)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckCloudwatchLogSubscriptionFilterDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccAWSCloudwatchLogSubscriptionFilterConfig(rstring),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckAwsCloudwatchLogSubscriptionFilterExists("aws_cloudwatch_log_subscription_filter.test_lambdafunction_logfilter", &conf, rstring),
+					testAccCheckCloudWatchLogSubscriptionFilterDisappears(&sf),
+				),
+				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
+func testAccCheckCloudWatchLogSubscriptionFilterDisappears(sf *cloudwatchlogs.SubscriptionFilter) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		conn := testAccProvider.Meta().(*AWSClient).cloudwatchlogsconn
+		params := &cloudwatchlogs.DeleteSubscriptionFilterInput{
+			FilterName:   sf.FilterName,
+			LogGroupName: sf.LogGroupName,
+		}
+		if _, err := conn.DeleteSubscriptionFilter(params); err != nil {
+			return err
+		}
+		return nil
+	}
 }
 
 func testAccCheckCloudwatchLogSubscriptionFilterDestroy(s *terraform.State) error {
